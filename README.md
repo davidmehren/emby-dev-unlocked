@@ -1,16 +1,16 @@
 # emby-dev-unlocked
 Emby (dev) with the premium Emby Premiere features unlocked.
 
-## Releases
-Releases including the patch are available below:
+## Latest version
+[3.2.33.14](https://github.com/nicolahinssen/emby-dev-unlocked/releases/tag/3.2.33.14)
 
-- [Arch Linux](https://aur.archlinux.org/packages/emby-server-unlocked/)
-- [Docker](https://hub.docker.com/r/nvllsvm/emby-unlocked/)
+## Releases
+
+[Arch Linux](https://aur.archlinux.org/packages/emby-server-dev-unlocked/)
 
 ## Why?
 At some point, the developers of Emby added a nasty nag screen before playback.
 Worse, you need to wait a few seconds before being able to dismiss it.
-They refuse to address removing it as seen [here](https://github.com/MediaBrowser/Emby/issues/2469).
 
 This is **bullshit** for a GPLv2 licensed product. Of course someone is going to fork Emby to remove it.
 
@@ -22,14 +22,14 @@ For example, both tv.emby.media and the mobile apps rely upon validation with th
 
 ## Modifications
 
-[PluginSecurityManager.cs.patch](https://github.com/nvllsvm/emby-unlocked/blob/master/patches/PluginSecurityManager.cs.patch)
+[PluginSecurityManager.cs.patch](https://github.com/nicolahinssen/emby-dev-unlocked/blob/master/patches/PluginSecurityManager.cs.patch)
 
 Before compilation, simply patch the existing file:
 ```
 patch -N -p1 -r - Emby.Server.Implementations/Security/PluginSecurityManager.cs < ../PluginSecurityManager.cs.patch
 ```
 
-[connectionmanager.js](https://github.com/nvllsvm/emby-unlocked/blob/master/replacements/connectionmanager.js)
+[connectionmanager.js](https://github.com/nicolahinssen/emby-dev-unlocked/blob/master/replacements/connectionmanager.js)
 
 Not really sure what this unlocks outside of removing the nag on the **Sync** screen.
 Sync doesn't seem to work afterwards.
@@ -48,3 +48,6 @@ self.getRegistrationInfo = function(feature, apiClient) {
     return Promise.resolve();
 }
 ```
+
+## Special Thanks
+[nvllsvm](https://github.com/nvllsvm)
