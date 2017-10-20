@@ -1,5 +1,5 @@
-# emby-unlocked
-Emby with the premium Emby Premiere features unlocked.
+# emby-dev-unlocked
+Emby (dev) with the premium Emby Premiere features unlocked.
 
 ## Releases
 Releases including the patch are available below:
@@ -32,7 +32,7 @@ patch -N -p1 -r - Emby.Server.Implementations/Security/PluginSecurityManager.cs 
 [connectionmanager.js](https://github.com/nvllsvm/emby-unlocked/blob/master/replacements/connectionmanager.js)
 
 Not really sure what this unlocks outside of removing the nag on the **Sync** screen.
-Sync doesn't seem to work afterwards. 
+Sync doesn't seem to work afterwards.
 Regardless - your own Emby server has zero need to contact the Emby-owned validation URL: [https://mb3admin.com/admin/service/registration/validateDevice](https://mb3admin.com/admin/service/registration/validateDevice).
 
 The included version of this in the source distribution is minified. Thus, making a patch is difficult.
