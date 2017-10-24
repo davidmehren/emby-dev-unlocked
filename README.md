@@ -2,11 +2,11 @@
 Emby (dev) with the premium Emby Premiere features unlocked.
 
 ## Latest version
-[3.2.33.19](https://github.com/nicolahinssen/emby-dev-unlocked/releases/tag/3.2.33.14)
+[2.0](https://github.com/nicolahinssen/emby-dev-unlocked/releases/tag/2.0)
 
 ## Releases
 
-[Arch Linux](https://aur.archlinux.org/packages/emby-server-dev-unlocked/)
+[Arch Linux - emby-server-dev-unlocked](https://aur.archlinux.org/packages/emby-server-dev-unlocked/)
 
 ## Why?
 At some point, the developers of Emby added a nasty nag screen before playback.
