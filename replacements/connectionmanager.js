@@ -1410,7 +1410,7 @@ existingServers[0] : apiClient.serverInfo();
         };
 
         self.getRegistrationInfo = function (feature, apiClient, options) {
-            var cacheKey = "regInfo-" + apiClient.serverInfo().Id;
+            var cacheKey = "regInfo-" + apiClient.serverId();
             appStorage.setItem(cacheKey, JSON.stringify({
                 lastValidDate: new Date().getTime(),
                 deviceId: self.deviceId()
