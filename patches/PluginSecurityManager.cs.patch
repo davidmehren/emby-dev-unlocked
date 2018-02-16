@@ -1,6 +1,6 @@
 --- PluginSecurityManager2.cs	2018-02-15 21:38:19.937992127 +0100
 +++ PluginSecurityManager2_new.cs	2018-02-15 21:38:23.082961449 +0100
-@@ -222,94 +222,14 @@
+@@ -213,94 +213,14 @@
          private async Task<MBRegistrationRecord> GetRegistrationStatusInternal(string feature,
              string version = null)
          {
