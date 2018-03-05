@@ -1,6 +1,39 @@
---- PluginSecurityManager2.cs	2018-02-15 21:38:19.937992127 +0100
-+++ PluginSecurityManager2_new.cs	2018-02-15 21:38:23.082961449 +0100
-@@ -213,94 +213,14 @@
+--- PluginSecurityManager.cs	2018-03-05 13:01:19.906589000 +0100
++++ PluginSecurityManager_new.cs	2018-03-05 13:08:37.259492700 +0100
+@@ -162,7 +162,6 @@
+                     {
+                         var msg = "Result from appstore registration was null.";
+                         _logger.Error(msg);
+-                        throw new ArgumentException(msg);
+                     }
+                     if (!String.IsNullOrEmpty(reg.key))
+                     {
+@@ -174,24 +173,16 @@
+             catch (ArgumentException)
+             {
+                 SaveAppStoreInfo(parameters);
+-                throw;
+             }
+             catch (HttpException e)
+             {
+                 _logger.ErrorException("Error registering appstore purchase {0}", e, parameters ?? "NO PARMS SENT");
+-
+-                if (e.StatusCode.HasValue && e.StatusCode.Value == HttpStatusCode.PaymentRequired)
+-                {
+-                    throw new PaymentRequiredException();
+-                }
+-                throw new Exception("Error registering store sale");
+             }
+             catch (Exception e)
+             {
+                 _logger.ErrorException("Error registering appstore purchase {0}", e, parameters ?? "NO PARMS SENT");
+                 SaveAppStoreInfo(parameters);
+                 //TODO - could create a re-try routine on start-up if this file is there.  For now we can handle manually.
+-                throw new Exception("Error registering store sale");
+             }
+ 
+         }
+@@ -213,93 +204,15 @@
          private async Task<MBRegistrationRecord> GetRegistrationStatusInternal(string feature,
              string version = null)
          {
@@ -29,8 +62,7 @@
 -            var success = reg.registered;
 -
 -            if (!(lastChecked > DateTime.UtcNow.AddDays(-1)) || (!reg.registered))
-+            return new MBRegistrationRecord
-             {
+-            {
 -                var data = new Dictionary<string, string>
 -                {
 -                    { "feature", feature }, 
@@ -81,8 +113,8 @@
 -                }
 -            }
 -
--            var record = new MBRegistrationRecord
--            {
+             var record = new MBRegistrationRecord
+             {
 -                IsRegistered = reg.registered,
 -                ExpirationDate = reg.expDate,
 +                IsRegistered = true,
@@ -92,11 +124,10 @@
 +                IsValid = true,
 +                RegError = false
              };
--
+ 
 -            record.TrialVersion = IsInTrial(reg.expDate, record.RegChecked, record.IsRegistered);
 -            record.IsValid = !record.RegChecked || record.IsRegistered || record.TrialVersion;
 -
--            return record;
+             return record;
          }
  
-         private bool IsInTrial(DateTime expirationDate, bool regChecked, bool isRegistered)

@@ -347,8 +347,7 @@ define(['events', 'apiclient', 'appStorage'], function (events, apiClientFactory
 
             });
 
-            var existingServer = existingServers.length ? 
-existingServers[0] : apiClient.serverInfo();
+            var existingServer = existingServers.length ? existingServers[0] : apiClient.serverInfo();
             existingServer.DateLastAccessed = new Date().getTime();
             existingServer.LastConnectionMode = ConnectionMode.Manual;
             existingServer.ManualAddress = apiClient.serverAddress();
@@ -1409,8 +1408,32 @@ existingServers[0] : apiClient.serverInfo();
             });
         };
 
+        function getCacheKey(feature, apiClient, options) {
+            options = options || {};
+            var viewOnly = options.viewOnly;
+
+            var cacheKey = 'regInfo-' + apiClient.serverId();
+
+            if (viewOnly) {
+                cacheKey += '-viewonly';
+            }
+
+            return cacheKey;
+        }
+
+        self.resetRegistrationInfo = function (apiClient) {
+
+            var cacheKey = getCacheKey('themes', apiClient, { viewOnly: true });
+            appStorage.removeItem(cacheKey);
+
+            cacheKey = getCacheKey('themes', apiClient, { viewOnly: false });
+            appStorage.removeItem(cacheKey);
+        };
+
         self.getRegistrationInfo = function (feature, apiClient, options) {
-            var cacheKey = "regInfo-" + apiClient.serverId();
+            options = options || {};
+
+            var cacheKey = getCacheKey(feature, apiClient, options);
             appStorage.setItem(cacheKey, JSON.stringify({
                 lastValidDate: new Date().getTime(),
                 deviceId: self.deviceId()
