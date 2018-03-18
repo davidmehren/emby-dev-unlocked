@@ -253,7 +253,7 @@ export default class ConnectionManager {
         credentialProvider,
         appStorage,
         apiClientFactory,
-        serverDiscoveryModulePath,
+        serverDiscoveryFn,
         wakeOnLanModulePath,
         appName,
         appVersion,
@@ -425,6 +425,9 @@ export default class ConnectionManager {
 
             credentialProvider.addOrUpdateServer(credentials.Servers, server);
             credentialProvider.credentials(credentials);
+
+            // set this now before updating server info, otherwise it won't be set in time
+            apiClient.enableAutomaticBitrateDetection = options.enableAutomaticBitrateDetection;
 
             apiClient.serverInfo(server);
             afterConnected(apiClient, options);
@@ -830,7 +833,7 @@ export default class ConnectionManager {
                     resolve(servers);
                 };
 
-                import(serverDiscoveryModulePath).then(serverDiscovery => {
+                serverDiscoveryFn().then(serverDiscovery => {
                     serverDiscovery.default.findServers(1000).then(onFinish, () => {
                         onFinish([]);
                     });
@@ -1088,6 +1091,10 @@ export default class ConnectionManager {
                 'ServerSignIn';
 
             result.Servers.push(server);
+
+            // set this now before updating server info, otherwise it won't be set in time
+            result.ApiClient.enableAutomaticBitrateDetection = options.enableAutomaticBitrateDetection;
+
             result.ApiClient.updateServerInfo(server, connectionMode);
 
             if (result.State === 'SignedIn') {
@@ -1377,7 +1384,7 @@ export default class ConnectionManager {
 
             const cacheKey = getCacheKey(feature, apiClient, options);
             appStorage.setItem(cacheKey, JSON.stringify({
-                lastValidDate: new Date().getTime(),
+                lastValidDate:new Date().getTime(),
                 deviceId: self.deviceId()
             }));
             return Promise.resolve();
@@ -1473,6 +1480,17 @@ export default class ConnectionManager {
         const instance = this;
 
         return instance.getAvailableServers().then(servers => instance.connectToServers(servers, options));
+    }
+
+    handleMessageReceived(msg) {
+
+        var serverId = msg.ServerId;
+        if (serverId) {
+            var apiClient = this.getApiClient(serverId);
+            if (apiClient) {
+                apiClient.handleMessageReceived(msg);
+            }
+        }
     }
 
     isLoggedIntoConnect() {
