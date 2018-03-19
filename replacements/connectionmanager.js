@@ -1,303 +1,315 @@
-import events from './events.js';
+define(['events', 'apiclient', 'appStorage'], function (events, apiClientFactory, appStorage) {
+    'use strict';
 
-const defaultTimeout = 20000;
+    var defaultTimeout = 20000;
 
-const ConnectionMode = {
-    Local: 0,
-    Remote: 1,
-    Manual: 2
-};
-
-function getServerAddress(server, mode) {
-
-    switch (mode) {
-        case ConnectionMode.Local:
-            return server.LocalAddress;
-        case ConnectionMode.Manual:
-            return server.ManualAddress;
-        case ConnectionMode.Remote:
-            return server.RemoteAddress;
-        default:
-            return server.ManualAddress || server.LocalAddress || server.RemoteAddress;
-    }
-}
-
-function paramsToString(params) {
-
-    const values = [];
-
-    for (const key in params) {
-
-        const value = params[key];
-
-        if (value !== null && value !== undefined && value !== '') {
-            values.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-        }
-    }
-    return values.join('&');
-}
-
-function resolveFailure(instance, resolve) {
-
-    resolve({
-        State: 'Unavailable',
-        ConnectUser: instance.connectUser()
-    });
-}
-
-function mergeServers(credentialProvider, list1, list2) {
-
-    for (let i = 0, length = list2.length; i < length; i++) {
-        credentialProvider.addOrUpdateServer(list1, list2[i]);
-    }
-
-    return list1;
-}
-
-function updateServerInfo(server, systemInfo) {
-
-    server.Name = systemInfo.ServerName;
-
-    if (systemInfo.Id) {
-        server.Id = systemInfo.Id;
-    }
-    if (systemInfo.LocalAddress) {
-        server.LocalAddress = systemInfo.LocalAddress;
-    }
-    if (systemInfo.WanAddress) {
-        server.RemoteAddress = systemInfo.WanAddress;
-    }
-    if (systemInfo.MacAddress) {
-        server.WakeOnLanInfos = [
-            { MacAddress: systemInfo.MacAddress }
-        ];
-    }
-}
-
-function getEmbyServerUrl(baseUrl, handler) {
-    return `${baseUrl}/emby/${handler}`;
-}
-
-function getFetchPromise(request) {
-
-    const headers = request.headers || {};
-
-    if (request.dataType === 'json') {
-        headers.accept = 'application/json';
-    }
-
-    const fetchRequest = {
-        headers,
-        method: request.type,
-        credentials: 'same-origin'
+    var ConnectionMode = {
+        Local: 0,
+        Remote: 1,
+        Manual: 2
     };
 
-    let contentType = request.contentType;
+    function getServerAddress(server, mode) {
 
-    if (request.data) {
-
-        if (typeof request.data === 'string') {
-            fetchRequest.body = request.data;
-        } else {
-            fetchRequest.body = paramsToString(request.data);
-
-            contentType = contentType || 'application/x-www-form-urlencoded; charset=UTF-8';
+        switch (mode) {
+            case ConnectionMode.Local:
+                return server.LocalAddress;
+            case ConnectionMode.Manual:
+                return server.ManualAddress;
+            case ConnectionMode.Remote:
+                return server.RemoteAddress;
+            default:
+                return server.ManualAddress || server.LocalAddress || server.RemoteAddress;
         }
     }
 
-    if (contentType) {
+    function paramsToString(params) {
 
-        headers['Content-Type'] = contentType;
-    }
+        var values = [];
 
-    if (!request.timeout) {
-        return fetch(request.url, fetchRequest);
-    }
+        for (var key in params) {
 
-    return fetchWithTimeout(request.url, fetchRequest, request.timeout);
-}
+            var value = params[key];
 
-function fetchWithTimeout(url, options, timeoutMs) {
-
-    console.log(`fetchWithTimeout: timeoutMs: ${timeoutMs}, url: ${url}`);
-
-    return new Promise((resolve, reject) => {
-
-        const timeout = setTimeout(reject, timeoutMs);
-
-        options = options || {};
-        options.credentials = 'same-origin';
-
-        fetch(url, options).then(response => {
-            clearTimeout(timeout);
-
-            console.log(`fetchWithTimeout: succeeded connecting to url: ${url}`);
-
-            resolve(response);
-        }, error => {
-
-            clearTimeout(timeout);
-
-            console.log(`fetchWithTimeout: timed out connecting to url: ${url}`);
-
-            reject();
-        });
-    });
-}
-
-function ajax(request) {
-
-    if (!request) {
-        throw new Error("Request cannot be null");
-    }
-
-    request.headers = request.headers || {};
-
-    console.log(`ConnectionManager requesting url: ${request.url}`);
-
-    return getFetchPromise(request).then(response => {
-
-        console.log(`ConnectionManager response status: ${response.status}, url: ${request.url}`);
-
-        if (response.status < 400) {
-
-            if (request.dataType === 'json' || request.headers.accept === 'application/json') {
-                return response.json();
-            } else {
-                return response;
+            if (value !== null && value !== undefined && value !== '') {
+                values.push(encodeURIComponent(key) + "=" + encodeURIComponent(value));
             }
-        } else {
-            return Promise.reject(response);
         }
-
-    }, err => {
-
-        console.log(`ConnectionManager request failed to url: ${request.url}`);
-        throw err;
-    });
-}
-
-function tryConnect(url, timeout) {
-
-    url = getEmbyServerUrl(url, "system/info/public");
-
-    console.log(`tryConnect url: ${url}`);
-
-    return ajax({
-
-        type: "GET",
-        url,
-        dataType: "json",
-
-        timeout: timeout || defaultTimeout
-
-    });
-}
-
-function getConnectUrl(handler) {
-    return `https://connect.emby.media/service/${handler}`;
-}
-
-function replaceAll(originalString, strReplace, strWith) {
-    const reg = new RegExp(strReplace, 'ig');
-    return originalString.replace(reg, strWith);
-}
-
-function normalizeAddress(address) {
-
-    // attempt to correct bad input
-    address = address.trim();
-
-    if (address.toLowerCase().indexOf('http') !== 0) {
-        address = `http://${address}`;
+        return values.join('&');
     }
 
-    // Seeing failures in iOS when protocol isn't lowercase
-    address = replaceAll(address, 'Http:', 'http:');
-    address = replaceAll(address, 'Https:', 'https:');
+    function resolveFailure(instance, resolve) {
 
-    return address;
-}
+        resolve({
+            State: 'Unavailable',
+            ConnectUser: instance.connectUser()
+        });
+    }
 
-function stringEqualsIgnoreCase(str1, str2) {
+    function mergeServers(credentialProvider, list1, list2) {
 
-    return (str1 || '').toLowerCase() === (str2 || '').toLowerCase();
-}
-
-function compareVersions(a, b) {
-
-    // -1 a is smaller
-    // 1 a is larger
-    // 0 equal
-    a = a.split('.');
-    b = b.split('.');
-
-    for (let i = 0, length = Math.max(a.length, b.length); i < length; i++) {
-        const aVal = parseInt(a[i] || '0');
-        const bVal = parseInt(b[i] || '0');
-
-        if (aVal < bVal) {
-            return -1;
+        for (var i = 0, length = list2.length; i < length; i++) {
+            credentialProvider.addOrUpdateServer(list1, list2[i]);
         }
 
-        if (aVal > bVal) {
-            return 1;
+        return list1;
+    }
+
+    function updateServerInfo(server, systemInfo) {
+
+        server.Name = systemInfo.ServerName;
+
+        if (systemInfo.Id) {
+            server.Id = systemInfo.Id;
+        }
+        if (systemInfo.LocalAddress) {
+            server.LocalAddress = systemInfo.LocalAddress;
+        }
+        if (systemInfo.WanAddress) {
+            server.RemoteAddress = systemInfo.WanAddress;
+        }
+        if (systemInfo.MacAddress) {
+            server.WakeOnLanInfos = [
+                { MacAddress: systemInfo.MacAddress }
+            ];
         }
     }
 
-    return 0;
-}
+    function getEmbyServerUrl(baseUrl, handler) {
+        return baseUrl + "/emby/" + handler;
+    }
 
-export default class ConnectionManager {
-    constructor(
-        credentialProvider,
-        appStorage,
-        apiClientFactory,
-        serverDiscoveryFn,
-        wakeOnLanFn,
-        appName,
-        appVersion,
-        deviceName,
-        deviceId,
-        capabilities,
-        devicePixelRatio) {
+    function getFetchPromise(request) {
+
+        var headers = request.headers || {};
+
+        if (request.dataType === 'json') {
+            headers.accept = 'application/json';
+        }
+
+        var fetchRequest = {
+            headers: headers,
+            method: request.type,
+            credentials: 'same-origin'
+        };
+
+        var contentType = request.contentType;
+
+        if (request.data) {
+
+            if (typeof request.data === 'string') {
+                fetchRequest.body = request.data;
+            } else {
+                fetchRequest.body = paramsToString(request.data);
+
+                contentType = contentType || 'application/x-www-form-urlencoded; charset=UTF-8';
+            }
+        }
+
+        if (contentType) {
+
+            headers['Content-Type'] = contentType;
+        }
+
+        if (!request.timeout) {
+            return fetch(request.url, fetchRequest);
+        }
+
+        return fetchWithTimeout(request.url, fetchRequest, request.timeout);
+    }
+
+    function fetchWithTimeout(url, options, timeoutMs) {
+
+        console.log('fetchWithTimeout: timeoutMs: ' + timeoutMs + ', url: ' + url);
+
+        return new Promise(function (resolve, reject) {
+
+            var timeout = setTimeout(reject, timeoutMs);
+
+            options = options || {};
+            options.credentials = 'same-origin';
+
+            fetch(url, options).then(function (response) {
+                clearTimeout(timeout);
+
+                console.log('fetchWithTimeout: succeeded connecting to url: ' + url);
+
+                resolve(response);
+            }, function (error) {
+
+                clearTimeout(timeout);
+
+                console.log('fetchWithTimeout: timed out connecting to url: ' + url);
+
+                reject();
+            });
+        });
+    }
+
+    function ajax(request) {
+
+        if (!request) {
+            throw new Error("Request cannot be null");
+        }
+
+        request.headers = request.headers || {};
+
+        console.log('ConnectionManager requesting url: ' + request.url);
+
+        return getFetchPromise(request).then(function (response) {
+
+            console.log('ConnectionManager response status: ' + response.status + ', url: ' + request.url);
+
+            if (response.status < 400) {
+
+                if (request.dataType === 'json' || request.headers.accept === 'application/json') {
+                    return response.json();
+                } else {
+                    return response;
+                }
+            } else {
+                return Promise.reject(response);
+            }
+
+        }, function (err) {
+
+            console.log('ConnectionManager request failed to url: ' + request.url);
+            throw err;
+        });
+    }
+
+    function tryConnect(url, timeout) {
+
+        url = getEmbyServerUrl(url, "system/info/public");
+
+        console.log('tryConnect url: ' + url);
+
+        return ajax({
+
+            type: "GET",
+            url: url,
+            dataType: "json",
+
+            timeout: timeout || defaultTimeout
+
+        });
+    }
+
+    function getConnectUrl(handler) {
+        return 'https://connect.emby.media/service/' + handler;
+    }
+
+    function replaceAll(originalString, strReplace, strWith) {
+        var reg = new RegExp(strReplace, 'ig');
+        return originalString.replace(reg, strWith);
+    }
+
+    function normalizeAddress(address) {
+
+        // attempt to correct bad input
+        address = address.trim();
+
+        if (address.toLowerCase().indexOf('http') !== 0) {
+            address = "http://" + address;
+        }
+
+        // Seeing failures in iOS when protocol isn't lowercase
+        address = replaceAll(address, 'Http:', 'http:');
+        address = replaceAll(address, 'Https:', 'https:');
+
+        return address;
+    }
+
+    function stringEqualsIgnoreCase(str1, str2) {
+
+        return (str1 || '').toLowerCase() === (str2 || '').toLowerCase();
+    }
+
+    function compareVersions(a, b) {
+
+        // -1 a is smaller
+        // 1 a is larger
+        // 0 equal
+        a = a.split('.');
+        b = b.split('.');
+
+        for (var i = 0, length = Math.max(a.length, b.length); i < length; i++) {
+            var aVal = parseInt(a[i] || '0');
+            var bVal = parseInt(b[i] || '0');
+
+            if (aVal < bVal) {
+                return -1;
+            }
+
+            if (aVal > bVal) {
+                return 1;
+            }
+        }
+
+        return 0;
+    }
+
+    var ConnectionManager = function (credentialProvider, appName, appVersion, deviceName, deviceId, capabilities, devicePixelRatio) {
 
         console.log('Begin ConnectionManager constructor');
 
-        const self = this;
+        var self = this;
         this._apiClients = [];
 
-        let connectUser;
-        self.connectUser = () => connectUser;
+        var connectUser;
+        self.connectUser = function () {
+            return connectUser;
+        };
 
         self._minServerVersion = '3.2.33';
 
-        self.appVersion = () => appVersion;
-
-        self.appName = () => appName;
-
-        self.capabilities = () => capabilities;
-
-        self.deviceId = () => deviceId;
-
-        self.credentialProvider = () => credentialProvider;
-
-        self.connectUserId = () => credentialProvider.credentials().ConnectUserId;
-
-        self.connectToken = () => credentialProvider.credentials().ConnectAccessToken;
-
-        self.getServerInfo = id => {
-
-            const servers = credentialProvider.credentials().Servers;
-
-            return servers.filter(s => s.Id === id)[0];
+        self.appVersion = function () {
+            return appVersion;
         };
 
-        self.getLastUsedServer = () => {
+        self.appName = function () {
+            return appName;
+        };
 
-            const servers = credentialProvider.credentials().Servers;
+        self.capabilities = function () {
+            return capabilities;
+        };
 
-            servers.sort((a, b) => (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0));
+        self.deviceId = function () {
+            return deviceId;
+        };
+
+        self.credentialProvider = function () {
+            return credentialProvider;
+        };
+
+        self.connectUserId = function () {
+            return credentialProvider.credentials().ConnectUserId;
+        };
+
+        self.connectToken = function () {
+
+            return credentialProvider.credentials().ConnectAccessToken;
+        };
+
+        self.getServerInfo = function (id) {
+
+            var servers = credentialProvider.credentials().Servers;
+
+            return servers.filter(function (s) {
+
+                return s.Id === id;
+
+            })[0];
+        };
+
+        self.getLastUsedServer = function () {
+
+            var servers = credentialProvider.credentials().Servers;
+
+            servers.sort(function (a, b) {
+                return (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0);
+            });
 
             if (!servers.length) {
                 return null;
@@ -306,39 +318,47 @@ export default class ConnectionManager {
             return servers[0];
         };
 
-        self.getLastUsedApiClient = () => {
+        self.getLastUsedApiClient = function () {
 
-            const servers = credentialProvider.credentials().Servers;
+            var servers = credentialProvider.credentials().Servers;
 
-            servers.sort((a, b) => (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0));
+            servers.sort(function (a, b) {
+                return (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0);
+            });
 
             if (!servers.length) {
                 return null;
             }
 
-            const server = servers[0];
+            var server = servers[0];
 
             return self._getOrAddApiClient(server, server.LastConnectionMode);
         };
 
-        self.addApiClient = apiClient => {
+        self.addApiClient = function (apiClient) {
 
             self._apiClients.push(apiClient);
 
-            const existingServers = credentialProvider.credentials().Servers.filter(s => stringEqualsIgnoreCase(s.ManualAddress, apiClient.serverAddress()) ||
-                stringEqualsIgnoreCase(s.LocalAddress, apiClient.serverAddress()) ||
-                stringEqualsIgnoreCase(s.RemoteAddress, apiClient.serverAddress()));
+            var existingServers = credentialProvider.credentials().Servers.filter(function (s) {
 
-            const existingServer = existingServers.length ? existingServers[0] : apiClient.serverInfo();
+                return stringEqualsIgnoreCase(s.ManualAddress, apiClient.serverAddress()) ||
+                    stringEqualsIgnoreCase(s.LocalAddress, apiClient.serverAddress()) ||
+                    stringEqualsIgnoreCase(s.RemoteAddress, apiClient.serverAddress());
+
+            });
+
+            var existingServer = existingServers.length ? existingServers[0] : apiClient.serverInfo();
             existingServer.DateLastAccessed = new Date().getTime();
             existingServer.LastConnectionMode = ConnectionMode.Manual;
             existingServer.ManualAddress = apiClient.serverAddress();
             apiClient.serverInfo(existingServer);
 
-            apiClient.onAuthenticated = (instance, result) => onAuthenticated(instance, result, {}, true);
+            apiClient.onAuthenticated = function (instance, result) {
+                return onAuthenticated(instance, result, {}, true);
+            };
 
             if (!existingServers.length) {
-                const credentials = credentialProvider.credentials();
+                var credentials = credentialProvider.credentials();
                 credentials.Servers = [existingServer];
                 credentialProvider.credentials(credentials);
             }
@@ -346,12 +366,12 @@ export default class ConnectionManager {
             events.trigger(self, 'apiclientcreated', [apiClient]);
         };
 
-        self.clearData = () => {
+        self.clearData = function () {
 
             console.log('connection manager clearing data');
 
             connectUser = null;
-            const credentials = credentialProvider.credentials();
+            var credentials = credentialProvider.credentials();
             credentials.ConnectAccessToken = null;
             credentials.ConnectUserId = null;
             credentials.Servers = [];
@@ -366,21 +386,23 @@ export default class ConnectionManager {
             events.trigger(self, 'connectusersignedin', [user]);
         }
 
-        self._getOrAddApiClient = (server, connectionMode) => {
+        self._getOrAddApiClient = function (server, connectionMode) {
 
-            let apiClient = self.getApiClient(server.Id);
+            var apiClient = self.getApiClient(server.Id);
 
             if (!apiClient) {
 
-                const url = getServerAddress(server, connectionMode);
+                var url = getServerAddress(server, connectionMode);
 
-                apiClient = new apiClientFactory(appStorage, wakeOnLanFn, url, appName, appVersion, deviceName, deviceId, devicePixelRatio);
+                apiClient = new apiClientFactory(url, appName, appVersion, deviceName, deviceId, devicePixelRatio);
 
                 self._apiClients.push(apiClient);
 
                 apiClient.serverInfo(server);
 
-                apiClient.onAuthenticated = (instance, result) => onAuthenticated(instance, result, {}, true);
+                apiClient.onAuthenticated = function (instance, result) {
+                    return onAuthenticated(instance, result, {}, true);
+                };
 
                 events.trigger(self, 'apiclientcreated', [apiClient]);
             }
@@ -389,26 +411,31 @@ export default class ConnectionManager {
             return apiClient;
         };
 
-        self.getOrCreateApiClient = serverId => {
+        self.getOrCreateApiClient = function (serverId) {
 
-            const credentials = credentialProvider.credentials();
-            const servers = credentials.Servers.filter(s => stringEqualsIgnoreCase(s.Id, serverId));
+            var credentials = credentialProvider.credentials();
+            var servers = credentials.Servers.filter(function (s) {
+                return stringEqualsIgnoreCase(s.Id, serverId);
+
+            });
 
             if (!servers.length) {
-                throw new Error(`Server not found: ${serverId}`);
+                throw new Error('Server not found: ' + serverId);
             }
 
-            const server = servers[0];
+            var server = servers[0];
 
             return self._getOrAddApiClient(server, server.LastConnectionMode);
         };
 
         function onAuthenticated(apiClient, result, options, saveCredentials) {
 
-            const credentials = credentialProvider.credentials();
-            const servers = credentials.Servers.filter(s => s.Id === result.ServerId);
+            var credentials = credentialProvider.credentials();
+            var servers = credentials.Servers.filter(function (s) {
+                return s.Id === result.ServerId;
+            });
 
-            const server = servers.length ? servers[0] : apiClient.serverInfo();
+            var server = servers.length ? servers[0] : apiClient.serverInfo();
 
             if (options.updateDateLastAccessed !== false) {
                 server.DateLastAccessed = new Date().getTime();
@@ -426,16 +453,15 @@ export default class ConnectionManager {
             credentialProvider.addOrUpdateServer(credentials.Servers, server);
             credentialProvider.credentials(credentials);
 
-            // set this now before updating server info, otherwise it won't be set in time
-            apiClient.enableAutomaticBitrateDetection = options.enableAutomaticBitrateDetection;
-
             apiClient.serverInfo(server);
             afterConnected(apiClient, options);
 
             return onLocalUserSignIn(server, server.LastConnectionMode, result.User);
         }
 
-        function afterConnected(apiClient, options = {}) {
+        function afterConnected(apiClient, options) {
+
+            options = options || {};
             if (options.reportCapabilities !== false) {
                 apiClient.reportCapabilities(capabilities);
             }
@@ -460,9 +486,9 @@ export default class ConnectionManager {
             self._getOrAddApiClient(server, connectionMode);
 
             // This allows the app to have a single hook that fires before any other
-            const promise = self.onLocalUserSignedIn ? self.onLocalUserSignedIn.call(self, user) : Promise.resolve();
+            var promise = self.onLocalUserSignedIn ? self.onLocalUserSignedIn.call(self, user) : Promise.resolve();
 
-            return promise.then(() => {
+            return promise.then(function () {
                 events.trigger(self, 'localusersignedin', [user]);
             });
         }
@@ -477,12 +503,14 @@ export default class ConnectionManager {
 
                 connectUser = null;
 
-                return getConnectUser(credentials.ConnectUserId, credentials.ConnectAccessToken).then(user => {
+                return getConnectUser(credentials.ConnectUserId, credentials.ConnectAccessToken).then(function (user) {
 
                     onConnectUserSignIn(user);
                     return Promise.resolve();
 
-                }, () => Promise.resolve());
+                }, function () {
+                    return Promise.resolve();
+                });
 
             } else {
                 return Promise.resolve();
@@ -498,14 +526,14 @@ export default class ConnectionManager {
                 throw new Error("null accessToken");
             }
 
-            const url = `https://connect.emby.media/service/user?id=${userId}`;
+            var url = "https://connect.emby.media/service/user?id=" + userId;
 
             return ajax({
                 type: "GET",
-                url,
+                url: url,
                 dataType: "json",
                 headers: {
-                    "X-Application": `${appName}/${appVersion}`,
+                    "X-Application": appName + "/" + appVersion,
                     "X-Connect-UserToken": accessToken
                 }
 
@@ -521,28 +549,28 @@ export default class ConnectionManager {
                 throw new Error("credentials.ConnectUserId cannot be null");
             }
 
-            let url = getServerAddress(server, connectionMode);
+            var url = getServerAddress(server, connectionMode);
 
-            url = getEmbyServerUrl(url, `Connect/Exchange?format=json&ConnectUserId=${credentials.ConnectUserId}`);
+            url = getEmbyServerUrl(url, "Connect/Exchange?format=json&ConnectUserId=" + credentials.ConnectUserId);
 
-            const auth = `MediaBrowser Client="${appName}", Device="${deviceName}", DeviceId="${deviceId}", Version="${appVersion}"`;
+            var auth = 'MediaBrowser Client="' + appName + '", Device="' + deviceName + '", DeviceId="' + deviceId + '", Version="' + appVersion + '"';
 
             return ajax({
                 type: "GET",
-                url,
+                url: url,
                 dataType: "json",
                 headers: {
                     "X-MediaBrowser-Token": server.ExchangeToken,
                     "X-Emby-Authorization": auth
                 }
 
-            }).then(auth => {
+            }).then(function (auth) {
 
                 server.UserId = auth.LocalUserId;
                 server.AccessToken = auth.AccessToken;
                 return auth;
 
-            }, () => {
+            }, function () {
 
                 server.UserId = null;
                 server.AccessToken = null;
@@ -553,7 +581,7 @@ export default class ConnectionManager {
 
         function validateAuthentication(server, connectionMode) {
 
-            const url = getServerAddress(server, connectionMode);
+            var url = getServerAddress(server, connectionMode);
 
             return ajax({
 
@@ -564,7 +592,7 @@ export default class ConnectionManager {
                     "X-MediaBrowser-Token": server.AccessToken
                 }
 
-            }).then(systemInfo => {
+            }).then(function (systemInfo) {
 
                 updateServerInfo(server, systemInfo);
 
@@ -572,18 +600,18 @@ export default class ConnectionManager {
 
                     return ajax({
                         type: "GET",
-                        url: getEmbyServerUrl(url, `users/${server.UserId}`),
+                        url: getEmbyServerUrl(url, "users/" + server.UserId),
                         dataType: "json",
                         headers: {
                             "X-MediaBrowser-Token": server.AccessToken
                         }
 
-                    }).then(user => {
+                    }).then(function (user) {
 
                         onLocalUserSignIn(server, connectionMode, user);
                         return Promise.resolve();
 
-                    }, () => {
+                    }, function () {
 
                         server.UserId = null;
                         server.AccessToken = null;
@@ -593,7 +621,7 @@ export default class ConnectionManager {
                     return Promise.resolve();
                 }
 
-            }, () => {
+            }, function () {
 
                 server.UserId = null;
                 server.AccessToken = null;
@@ -610,15 +638,15 @@ export default class ConnectionManager {
             }
             if (localUser && localUser.PrimaryImageTag) {
 
-                const apiClient = self.getApiClient(localUser);
+                var apiClient = self.getApiClient(localUser);
 
-                const url = apiClient.getUserImageUrl(localUser.Id, {
+                var url = apiClient.getUserImageUrl(localUser.Id, {
                     tag: localUser.PrimaryImageTag,
                     type: "Primary"
                 });
 
                 return {
-                    url,
+                    url: url,
                     supportsParams: true
                 };
             }
@@ -629,68 +657,73 @@ export default class ConnectionManager {
             };
         }
 
-        self.user = apiClient => new Promise((resolve, reject) => {
+        self.user = function (apiClient) {
 
-            let localUser;
+            return new Promise(function (resolve, reject) {
 
-            function onLocalUserDone(e) {
+                var localUser;
 
-                const image = getImageUrl(localUser);
+                function onLocalUserDone(e) {
 
-                resolve({
-                    localUser,
-                    name: connectUser ? connectUser.Name : (localUser ? localUser.Name : null),
-                    imageUrl: image.url,
-                    supportsImageParams: image.supportsParams,
-                    connectUser
-                });
-            }
+                    var image = getImageUrl(localUser);
 
-            function onEnsureConnectUserDone() {
-
-                if (apiClient && apiClient.getCurrentUserId()) {
-                    apiClient.getCurrentUser().then(u => {
-                        localUser = u;
-                        onLocalUserDone();
-
-                    }, onLocalUserDone);
-                } else {
-                    onLocalUserDone();
+                    resolve({
+                        localUser: localUser,
+                        name: connectUser ? connectUser.Name : (localUser ? localUser.Name : null),
+                        imageUrl: image.url,
+                        supportsImageParams: image.supportsParams,
+                        connectUser: connectUser
+                    });
                 }
-            }
 
-            const credentials = credentialProvider.credentials();
+                function onEnsureConnectUserDone() {
 
-            if (credentials.ConnectUserId && credentials.ConnectAccessToken && !(apiClient && apiClient.getCurrentUserId())) {
-                ensureConnectUser(credentials).then(onEnsureConnectUserDone, onEnsureConnectUserDone);
-            } else {
-                onEnsureConnectUserDone();
-            }
-        });
+                    if (apiClient && apiClient.getCurrentUserId()) {
+                        apiClient.getCurrentUser().then(function (u) {
+                            localUser = u;
+                            onLocalUserDone();
 
-        self.logout = () => {
+                        }, onLocalUserDone);
+                    } else {
+                        onLocalUserDone();
+                    }
+                }
+
+                var credentials = credentialProvider.credentials();
+
+                if (credentials.ConnectUserId && credentials.ConnectAccessToken && !(apiClient && apiClient.getCurrentUserId())) {
+                    ensureConnectUser(credentials).then(onEnsureConnectUserDone, onEnsureConnectUserDone);
+                } else {
+                    onEnsureConnectUserDone();
+                }
+            });
+        };
+
+        self.logout = function () {
 
             console.log('begin connectionManager loguot');
-            const promises = [];
+            var promises = [];
 
-            for (let i = 0, length = self._apiClients.length; i < length; i++) {
+            for (var i = 0, length = self._apiClients.length; i < length; i++) {
 
-                const apiClient = self._apiClients[i];
+                var apiClient = self._apiClients[i];
 
                 if (apiClient.accessToken()) {
                     promises.push(logoutOfServer(apiClient));
                 }
             }
 
-            return Promise.all(promises).then(() => {
+            return Promise.all(promises).then(function () {
 
-                const credentials = credentialProvider.credentials();
+                var credentials = credentialProvider.credentials();
 
-                const servers = credentials.Servers.filter(u => u.UserLinkType !== "Guest");
+                var servers = credentials.Servers.filter(function (u) {
+                    return u.UserLinkType !== "Guest";
+                });
 
-                for (let j = 0, numServers = servers.length; j < numServers; j++) {
+                for (var j = 0, numServers = servers.length; j < numServers; j++) {
 
-                    const server = servers[j];
+                    var server = servers[j];
 
                     server.UserId = null;
                     server.AccessToken = null;
@@ -716,16 +749,16 @@ export default class ConnectionManager {
 
         function logoutOfServer(apiClient) {
 
-            const serverInfo = apiClient.serverInfo() || {};
+            var serverInfo = apiClient.serverInfo() || {};
 
-            const logoutInfo = {
+            var logoutInfo = {
                 serverId: serverInfo.Id
             };
 
-            return apiClient.logout().then(() => {
+            return apiClient.logout().then(function () {
 
                 events.trigger(self, 'localusersignedout', [logoutInfo]);
-            }, () => {
+            }, function () {
 
                 events.trigger(self, 'localusersignedout', [logoutInfo]);
             });
@@ -739,58 +772,74 @@ export default class ConnectionManager {
                 return Promise.resolve([]);
             }
 
-            const url = `https://connect.emby.media/service/servers?userId=${credentials.ConnectUserId}`;
+            var url = "https://connect.emby.media/service/servers?userId=" + credentials.ConnectUserId;
 
             return ajax({
                 type: "GET",
-                url,
+                url: url,
                 dataType: "json",
                 headers: {
-                    "X-Application": `${appName}/${appVersion}`,
+                    "X-Application": appName + "/" + appVersion,
                     "X-Connect-UserToken": credentials.ConnectAccessToken
                 }
 
-            }).then(servers => servers.map(i => ({
-                ExchangeToken: i.AccessKey,
-                ConnectServerId: i.Id,
-                Id: i.SystemId,
-                Name: i.Name,
-                RemoteAddress: i.Url,
-                LocalAddress: i.LocalAddress,
-                UserLinkType: (i.UserType || '').toLowerCase() === "guest" ? "Guest" : "LinkedUser"
-            })), () => credentials.Servers.slice(0).filter(s => s.ExchangeToken));
+            }).then(function (servers) {
+
+                return servers.map(function (i) {
+                    return {
+                        ExchangeToken: i.AccessKey,
+                        ConnectServerId: i.Id,
+                        Id: i.SystemId,
+                        Name: i.Name,
+                        RemoteAddress: i.Url,
+                        LocalAddress: i.LocalAddress,
+                        UserLinkType: (i.UserType || '').toLowerCase() === "guest" ? "Guest" : "LinkedUser"
+                    };
+                });
+
+            }, function () {
+
+                return credentials.Servers.slice(0).filter(function (s) {
+
+                    return s.ExchangeToken;
+                });
+            });
         }
 
-        self.getSavedServers = () => {
+        self.getSavedServers = function () {
 
-            const credentials = credentialProvider.credentials();
+            var credentials = credentialProvider.credentials();
 
-            const servers = credentials.Servers.slice(0);
+            var servers = credentials.Servers.slice(0);
 
-            servers.sort((a, b) => (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0));
+            servers.sort(function (a, b) {
+                return (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0);
+            });
 
             return servers;
         };
 
-        self.getAvailableServers = () => {
+        self.getAvailableServers = function () {
 
             console.log('Begin getAvailableServers');
 
             // Clone the array
-            const credentials = credentialProvider.credentials();
+            var credentials = credentialProvider.credentials();
 
-            return Promise.all([getConnectServers(credentials), findServers()]).then(responses => {
+            return Promise.all([getConnectServers(credentials), findServers()]).then(function (responses) {
 
-                const connectServers = responses[0];
-                const foundServers = responses[1];
+                var connectServers = responses[0];
+                var foundServers = responses[1];
 
-                let servers = credentials.Servers.slice(0);
+                var servers = credentials.Servers.slice(0);
                 mergeServers(credentialProvider, servers, foundServers);
                 mergeServers(credentialProvider, servers, connectServers);
 
                 servers = filterServers(servers, connectServers);
 
-                servers.sort((a, b) => (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0));
+                servers.sort(function (a, b) {
+                    return (b.DateLastAccessed || 0) - (a.DateLastAccessed || 0);
+                });
 
                 credentials.Servers = servers;
 
@@ -802,25 +851,29 @@ export default class ConnectionManager {
 
         function filterServers(servers, connectServers) {
 
-            return servers.filter(server => {
+            return servers.filter(function (server) {
 
                 // It's not a connect server, so assume it's still valid
                 if (!server.ExchangeToken) {
                     return true;
                 }
 
-                return connectServers.filter(connectServer => server.Id === connectServer.Id).length > 0;
+                return connectServers.filter(function (connectServer) {
+
+                    return server.Id === connectServer.Id;
+
+                }).length > 0;
             });
         }
 
         function findServers() {
 
-            return new Promise((resolve, reject) => {
+            return new Promise(function (resolve, reject) {
 
-                const onFinish = foundServers => {
-                    const servers = foundServers.map(foundServer => {
+                var onFinish = function (foundServers) {
+                    var servers = foundServers.map(function (foundServer) {
 
-                        const info = {
+                        var info = {
                             Id: foundServer.Id,
                             LocalAddress: convertEndpointAddressToManualAddress(foundServer) || foundServer.Address,
                             Name: foundServer.Name
@@ -833,8 +886,8 @@ export default class ConnectionManager {
                     resolve(servers);
                 };
 
-                serverDiscoveryFn().then(serverDiscovery => {
-                    serverDiscovery.default.findServers(1000).then(onFinish, () => {
+                require(['serverdiscovery'], function (serverDiscovery) {
+                    serverDiscovery.findServers(1000).then(onFinish, function () {
                         onFinish([]);
                     });
 
@@ -845,15 +898,15 @@ export default class ConnectionManager {
         function convertEndpointAddressToManualAddress(info) {
 
             if (info.Address && info.EndpointAddress) {
-                let address = info.EndpointAddress.split(":")[0];
+                var address = info.EndpointAddress.split(":")[0];
 
                 // Determine the port, if any
-                const parts = info.Address.split(":");
+                var parts = info.Address.split(":");
                 if (parts.length > 1) {
-                    const portString = parts[parts.length - 1];
+                    var portString = parts[parts.length - 1];
 
                     if (!isNaN(parseInt(portString))) {
-                        address += `:${portString}`;
+                        address += ":" + portString;
                     }
                 }
 
@@ -863,35 +916,37 @@ export default class ConnectionManager {
             return null;
         }
 
-        self.connectToServers = (servers, options) => {
+        self.connectToServers = function (servers, options) {
 
-            console.log(`Begin connectToServers, with ${servers.length} servers`);
+            console.log('Begin connectToServers, with ' + servers.length + ' servers');
 
-            let defaultServer = servers.length === 1 ? servers[0] : null;
+            var defaultServer = servers.length === 1 ? servers[0] : null;
 
             if (!defaultServer) {
-                const lastLocalServerId = appStorage.getItem('lastLocalServerId');
-                defaultServer = servers.filter(s => s.Id === lastLocalServerId)[0];
+                var lastLocalServerId = appStorage.getItem('lastLocalServerId');
+                defaultServer = servers.filter(function (s) {
+                    return s.Id === lastLocalServerId;
+                })[0];
             }
 
             if (defaultServer) {
 
-                return self.connectToServer(defaultServer, options).then(result => {
+                return self.connectToServer(defaultServer, options).then(function (result) {
 
                     if (result.State === 'Unavailable') {
 
                         result.State = 'ServerSelection';
                     }
 
-                    console.log(`resolving connectToServers with result.State: ${result.State}`);
+                    console.log('resolving connectToServers with result.State: ' + result.State);
                     return result;
                 });
             }
 
-            const firstServer = servers.length ? servers[0] : null;
+            var firstServer = servers.length ? servers[0] : null;
             // See if we have any saved credentials and can auto sign in
             if (firstServer) {
-                return self.connectToServer(firstServer, options).then(result => {
+                return self.connectToServer(firstServer, options).then(function (result) {
 
                     if (result.State === 'SignedIn') {
 
@@ -914,20 +969,20 @@ export default class ConnectionManager {
             });
         };
 
-        self.connectToServer = (server, options) => {
+        self.connectToServer = function (server, options) {
 
             console.log('begin connectToServer');
 
-            return new Promise((resolve, reject) => {
+            return new Promise(function (resolve, reject) {
 
-                const tests = [];
+                var tests = [];
 
                 if (server.LastConnectionMode != null) {
                     //tests.push(server.LastConnectionMode);
                 }
-                if (!tests.includes(ConnectionMode.Manual)) { tests.push(ConnectionMode.Manual); }
-                if (!tests.includes(ConnectionMode.Local)) { tests.push(ConnectionMode.Local); }
-                if (!tests.includes(ConnectionMode.Remote)) { tests.push(ConnectionMode.Remote); }
+                if (tests.indexOf(ConnectionMode.Manual) === -1) { tests.push(ConnectionMode.Manual); }
+                if (tests.indexOf(ConnectionMode.Local) === -1) { tests.push(ConnectionMode.Local); }
+                if (tests.indexOf(ConnectionMode.Remote) === -1) { tests.push(ConnectionMode.Remote); }
 
                 options = options || {};
 
@@ -945,11 +1000,11 @@ export default class ConnectionManager {
                 return;
             }
 
-            const mode = tests[index];
-            const address = getServerAddress(server, mode);
-            let enableRetry = false;
-            let skipTest = false;
-            let timeout = defaultTimeout;
+            var mode = tests[index];
+            var address = getServerAddress(server, mode);
+            var enableRetry = false;
+            var skipTest = false;
+            var timeout = defaultTimeout;
 
             if (mode === ConnectionMode.Local) {
 
@@ -971,18 +1026,18 @@ export default class ConnectionManager {
             }
 
             if (skipTest || !address) {
-                console.log(`skipping test at index ${index}`);
+                console.log('skipping test at index ' + index);
                 testNextConnectionMode(tests, index + 1, server, options, resolve);
                 return;
             }
 
-            console.log(`testing connection mode ${mode} with server ${server.Name}`);
+            console.log('testing connection mode ' + mode + ' with server ' + server.Name);
 
-            tryConnect(address, timeout).then(result => {
+            tryConnect(address, timeout).then(function (result) {
 
                 if (compareVersions(self.minServerVersion(), result.Version) === 1) {
 
-                    console.log(`minServerVersion requirement not met. Server version: ${result.Version}`);
+                    console.log('minServerVersion requirement not met. Server version: ' + result.Version);
                     resolve({
                         State: 'ServerUpdateNeeded',
                         Servers: [server]
@@ -995,13 +1050,13 @@ export default class ConnectionManager {
                     resolveFailure(self, resolve);
 
                 } else {
-                    console.log(`calling onSuccessfulConnection with connection mode ${mode} with server ${server.Name}`);
+                    console.log('calling onSuccessfulConnection with connection mode ' + mode + ' with server ' + server.Name);
                     onSuccessfulConnection(server, result, mode, options, resolve);
                 }
 
-            }, () => {
+            }, function () {
 
-                console.log(`test failed for connection mode ${mode} with server ${server.Name}`);
+                console.log('test failed for connection mode ' + mode + ' with server ' + server.Name);
 
                 if (enableRetry) {
 
@@ -1018,18 +1073,18 @@ export default class ConnectionManager {
 
         function onSuccessfulConnection(server, systemInfo, connectionMode, options, resolve) {
 
-            const credentials = credentialProvider.credentials();
+            var credentials = credentialProvider.credentials();
             options = options || {};
             if (credentials.ConnectAccessToken && options.enableAutoLogin !== false) {
 
-                ensureConnectUser(credentials).then(() => {
+                ensureConnectUser(credentials).then(function () {
 
                     if (server.ExchangeToken) {
-                        addAuthenticationInfoFromConnect(server, connectionMode, credentials).then(() => {
+                        addAuthenticationInfoFromConnect(server, connectionMode, credentials).then(function () {
 
                             afterConnectValidated(server, credentials, systemInfo, connectionMode, true, options, resolve);
 
-                        }, () => {
+                        }, function () {
 
                             afterConnectValidated(server, credentials, systemInfo, connectionMode, true, options, resolve);
                         });
@@ -1045,14 +1100,10 @@ export default class ConnectionManager {
             }
         }
 
-        function afterConnectValidated(
-            server,
-            credentials,
-            systemInfo,
-            connectionMode,
-            verifyLocalAuthentication,
-            options = {},
-            resolve) {
+        function afterConnectValidated(server, credentials, systemInfo, connectionMode, verifyLocalAuthentication, options, resolve) {
+
+            options = options || {};
+
             if (options.enableAutoLogin === false) {
 
                 server.UserId = null;
@@ -1060,7 +1111,7 @@ export default class ConnectionManager {
 
             } else if (verifyLocalAuthentication && server.AccessToken && options.enableAutoLogin !== false) {
 
-                validateAuthentication(server, connectionMode).then(() => {
+                validateAuthentication(server, connectionMode).then(function () {
 
                     afterConnectValidated(server, credentials, systemInfo, connectionMode, false, options, resolve);
                 });
@@ -1078,7 +1129,7 @@ export default class ConnectionManager {
             credentialProvider.addOrUpdateServer(credentials.Servers, server);
             credentialProvider.credentials(credentials);
 
-            const result = {
+            var result = {
                 Servers: []
             };
 
@@ -1091,10 +1142,6 @@ export default class ConnectionManager {
                 'ServerSignIn';
 
             result.Servers.push(server);
-
-            // set this now before updating server info, otherwise it won't be set in time
-            result.ApiClient.enableAutomaticBitrateDetection = options.enableAutomaticBitrateDetection;
-
             result.ApiClient.updateServerInfo(server, connectionMode);
 
             if (result.State === 'SignedIn') {
@@ -1113,17 +1160,17 @@ export default class ConnectionManager {
             }
 
             address = normalizeAddress(address);
-            const instance = this;
+            var instance = this;
 
             function onFail() {
-                console.log(`connectToAddress ${address} failed`);
+                console.log('connectToAddress ' + address + ' failed');
                 return Promise.resolve({
                     State: 'Unavailable',
                     ConnectUser: instance.connectUser()
                 });
             }
 
-            const server = {
+            var server = {
                 ManualAddress: address,
                 LastConnectionMode: ConnectionMode.Manual
             };
@@ -1131,7 +1178,7 @@ export default class ConnectionManager {
             return self.connectToServer(server, options).catch(onFail);
         };
 
-        self.loginToConnect = (username, password) => {
+        self.loginToConnect = function (username, password) {
 
             if (!username) {
                 return Promise.reject();
@@ -1150,12 +1197,12 @@ export default class ConnectionManager {
                 dataType: "json",
                 contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
                 headers: {
-                    "X-Application": `${appName}/${appVersion}`
+                    "X-Application": appName + "/" + appVersion
                 }
 
-            }).then(result => {
+            }).then(function (result) {
 
-                const credentials = credentialProvider.credentials();
+                var credentials = credentialProvider.credentials();
 
                 credentials.ConnectAccessToken = result.AccessToken;
                 credentials.ConnectUserId = result.User.Id;
@@ -1168,12 +1215,12 @@ export default class ConnectionManager {
             });
         };
 
-        self.signupForConnect = options => {
+        self.signupForConnect = function (options) {
 
-            const email = options.email;
-            const username = options.username;
-            const password = options.password;
-            const passwordConfirm = options.passwordConfirm;
+            var email = options.email;
+            var username = options.username;
+            var password = options.password;
+            var passwordConfirm = options.passwordConfirm;
 
             if (!email) {
                 return Promise.reject({ errorCode: 'invalidinput' });
@@ -1191,8 +1238,8 @@ export default class ConnectionManager {
                 return Promise.reject({ errorCode: 'passwordmatch' });
             }
 
-            const data = {
-                email,
+            var data = {
+                email: email,
                 userName: username,
                 rawpw: password
             };
@@ -1204,15 +1251,15 @@ export default class ConnectionManager {
             return ajax({
                 type: "POST",
                 url: "https://connect.emby.media/service/register",
-                data,
+                data: data,
                 dataType: "json",
                 contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
                 headers: {
-                    "X-Application": `${appName}/${appVersion}`,
+                    "X-Application": appName + "/" + appVersion,
                     "X-CONNECT-TOKEN": "CONNECT-REGISTER"
                 }
 
-            }).catch(response => {
+            }).catch(function (response) {
 
                 try {
                     return response.json();
@@ -1220,7 +1267,7 @@ export default class ConnectionManager {
                     throw err;
                 }
 
-            }).then(result => {
+            }).then(function (result) {
                 if (result && result.Status) {
 
                     if (result.Status === 'SUCCESS') {
@@ -1233,9 +1280,9 @@ export default class ConnectionManager {
             });
         };
 
-        self.getUserInvitations = () => {
+        self.getUserInvitations = function () {
 
-            const connectToken = self.connectToken();
+            var connectToken = self.connectToken();
 
             if (!connectToken) {
                 throw new Error("null connectToken");
@@ -1244,35 +1291,39 @@ export default class ConnectionManager {
                 throw new Error("null connectUserId");
             }
 
-            const url = `https://connect.emby.media/service/servers?userId=${self.connectUserId()}&status=Waiting`;
+            var url = "https://connect.emby.media/service/servers?userId=" + self.connectUserId() + "&status=Waiting";
 
             return ajax({
                 type: "GET",
-                url,
+                url: url,
                 dataType: "json",
                 headers: {
                     "X-Connect-UserToken": connectToken,
-                    "X-Application": `${appName}/${appVersion}`
+                    "X-Application": appName + "/" + appVersion
                 }
 
             });
         };
 
-        self.deleteServer = serverId => {
+        self.deleteServer = function (serverId) {
 
             if (!serverId) {
                 throw new Error("null serverId");
             }
 
-            let server = credentialProvider.credentials().Servers.filter(s => s.Id === serverId);
+            var server = credentialProvider.credentials().Servers.filter(function (s) {
+                return s.Id === serverId;
+            });
             server = server.length ? server[0] : null;
 
-            return new Promise((resolve, reject) => {
+            return new Promise(function (resolve, reject) {
 
                 function onDone() {
-                    const credentials = credentialProvider.credentials();
+                    var credentials = credentialProvider.credentials();
 
-                    credentials.Servers = credentials.Servers.filter(s => s.Id !== serverId);
+                    credentials.Servers = credentials.Servers.filter(function (s) {
+                        return s.Id !== serverId;
+                    });
 
                     credentialProvider.credentials(credentials);
                     resolve();
@@ -1283,31 +1334,31 @@ export default class ConnectionManager {
                     return;
                 }
 
-                const connectToken = self.connectToken();
-                const connectUserId = self.connectUserId();
+                var connectToken = self.connectToken();
+                var connectUserId = self.connectUserId();
 
                 if (!connectToken || !connectUserId) {
                     onDone();
                     return;
                 }
 
-                const url = `https://connect.emby.media/service/serverAuthorizations?serverId=${server.ConnectServerId}&userId=${connectUserId}`;
+                var url = "https://connect.emby.media/service/serverAuthorizations?serverId=" + server.ConnectServerId + "&userId=" + connectUserId;
 
                 ajax({
                     type: "DELETE",
-                    url,
+                    url: url,
                     headers: {
                         "X-Connect-UserToken": connectToken,
-                        "X-Application": `${appName}/${appVersion}`
+                        "X-Application": appName + "/" + appVersion
                     }
 
                 }).then(onDone, onDone);
             });
         };
 
-        self.rejectServer = serverId => {
+        self.rejectServer = function (serverId) {
 
-            const connectToken = self.connectToken();
+            var connectToken = self.connectToken();
 
             if (!serverId) {
                 throw new Error("null serverId");
@@ -1319,20 +1370,20 @@ export default class ConnectionManager {
                 throw new Error("null connectUserId");
             }
 
-            const url = `https://connect.emby.media/service/serverAuthorizations?serverId=${serverId}&userId=${self.connectUserId()}`;
+            var url = "https://connect.emby.media/service/serverAuthorizations?serverId=" + serverId + "&userId=" + self.connectUserId();
 
             return fetch(url, {
                 method: "DELETE",
                 headers: {
                     "X-Connect-UserToken": connectToken,
-                    "X-Application": `${appName}/${appVersion}`
+                    "X-Application": appName + "/" + appVersion
                 }
             });
         };
 
-        self.acceptServer = serverId => {
+        self.acceptServer = function (serverId) {
 
-            const connectToken = self.connectToken();
+            var connectToken = self.connectToken();
 
             if (!serverId) {
                 throw new Error("null serverId");
@@ -1344,23 +1395,24 @@ export default class ConnectionManager {
                 throw new Error("null connectUserId");
             }
 
-            const url = `https://connect.emby.media/service/ServerAuthorizations/accept?serverId=${serverId}&userId=${self.connectUserId()}`;
+            var url = "https://connect.emby.media/service/ServerAuthorizations/accept?serverId=" + serverId + "&userId=" + self.connectUserId();
 
             return ajax({
                 type: "GET",
-                url,
+                url: url,
                 headers: {
                     "X-Connect-UserToken": connectToken,
-                    "X-Application": `${appName}/${appVersion}`
+                    "X-Application": appName + "/" + appVersion
                 }
 
             });
         };
 
-        function getCacheKey(feature, apiClient, options = {}) {
-            const viewOnly = options.viewOnly;
+        function getCacheKey(feature, apiClient, options) {
+            options = options || {};
+            var viewOnly = options.viewOnly;
 
-            let cacheKey = `regInfo-${apiClient.serverId()}`;
+            var cacheKey = 'regInfo-' + apiClient.serverId();
 
             if (viewOnly) {
                 cacheKey += '-viewonly';
@@ -1369,22 +1421,21 @@ export default class ConnectionManager {
             return cacheKey;
         }
 
-        self.resetRegistrationInfo = apiClient => {
+        self.resetRegistrationInfo = function (apiClient) {
 
-            let cacheKey = getCacheKey('themes', apiClient, { viewOnly: true });
+            var cacheKey = getCacheKey('themes', apiClient, { viewOnly: true });
             appStorage.removeItem(cacheKey);
 
             cacheKey = getCacheKey('themes', apiClient, { viewOnly: false });
             appStorage.removeItem(cacheKey);
         };
 
-        self.getRegistrationInfo = (feature, apiClient, options) => {
-
+        self.getRegistrationInfo = function (feature, apiClient, options) {
             options = options || {};
 
-            const cacheKey = getCacheKey(feature, apiClient, options);
+            var cacheKey = getCacheKey(feature, apiClient, options);
             appStorage.setItem(cacheKey, JSON.stringify({
-                lastValidDate:new Date().getTime(),
+                lastValidDate: new Date().getTime(),
                 deviceId: self.deviceId()
             }));
             return Promise.resolve();
@@ -1392,16 +1443,16 @@ export default class ConnectionManager {
 
         function addAppInfoToConnectRequest(request) {
             request.headers = request.headers || {};
-            request.headers['X-Application'] = `${appName}/${appVersion}`;
+            request.headers['X-Application'] = appName + '/' + appVersion;
         }
 
-        self.createPin = () => {
+        self.createPin = function () {
 
-            const request = {
+            var request = {
                 type: 'POST',
                 url: getConnectUrl('pin'),
                 data: {
-                    deviceId
+                    deviceId: deviceId
                 },
                 dataType: 'json'
             };
@@ -1411,20 +1462,20 @@ export default class ConnectionManager {
             return ajax(request);
         };
 
-        self.getPinStatus = pinInfo => {
+        self.getPinStatus = function (pinInfo) {
 
             if (!pinInfo) {
                 throw new Error('pinInfo cannot be null');
             }
 
-            const queryString = {
+            var queryString = {
                 deviceId: pinInfo.DeviceId,
                 pin: pinInfo.Pin
             };
 
-            const request = {
+            var request = {
                 type: 'GET',
-                url: `${getConnectUrl('pin')}?${paramsToString(queryString)}`,
+                url: getConnectUrl('pin') + '?' + paramsToString(queryString),
                 dataType: 'json'
             };
 
@@ -1440,7 +1491,7 @@ export default class ConnectionManager {
                 throw new Error('pinInfo cannot be null');
             }
 
-            const request = {
+            var request = {
                 type: 'POST',
                 url: getConnectUrl('pin/authenticate'),
                 data: {
@@ -1455,15 +1506,15 @@ export default class ConnectionManager {
             return ajax(request);
         }
 
-        self.exchangePin = pinInfo => {
+        self.exchangePin = function (pinInfo) {
 
             if (!pinInfo) {
                 throw new Error('pinInfo cannot be null');
             }
 
-            return exchangePin(pinInfo).then(result => {
+            return exchangePin(pinInfo).then(function (result) {
 
-                const credentials = credentialProvider.credentials();
+                var credentials = credentialProvider.credentials();
                 credentials.ConnectAccessToken = result.AccessToken;
                 credentials.ConnectUserId = result.UserId;
                 credentialProvider.credentials(credentials);
@@ -1471,52 +1522,44 @@ export default class ConnectionManager {
                 return ensureConnectUser(credentials);
             });
         };
-    }
+    };
 
-    connect(options) {
+    ConnectionManager.prototype.connect = function (options) {
 
         console.log('Begin connect');
 
-        const instance = this;
+        var instance = this;
 
-        return instance.getAvailableServers().then(servers => instance.connectToServers(servers, options));
-    }
+        return instance.getAvailableServers().then(function (servers) {
 
-    handleMessageReceived(msg) {
+            return instance.connectToServers(servers, options);
+        });
+    };
 
-        var serverId = msg.ServerId;
-        if (serverId) {
-            var apiClient = this.getApiClient(serverId);
-            if (apiClient) {
-                apiClient.handleMessageReceived(msg);
-            }
-        }
-    }
-
-    isLoggedIntoConnect() {
+    ConnectionManager.prototype.isLoggedIntoConnect = function () {
 
         // Make sure it returns true or false
         if (!this.connectToken() || !this.connectUserId()) {
             return false;
         }
         return true;
-    }
+    };
 
-    getApiClients() {
+    ConnectionManager.prototype.getApiClients = function () {
 
-        const servers = this.getSavedServers();
+        var servers = this.getSavedServers();
 
-        for (let i = 0, length = servers.length; i < length; i++) {
-            const server = servers[i];
+        for (var i = 0, length = servers.length; i < length; i++) {
+            var server = servers[i];
             if (server.Id) {
                 this._getOrAddApiClient(server, server.LastConnectionMode);
             }
         }
 
         return this._apiClients;
-    }
+    };
 
-    getApiClient(item) {
+    ConnectionManager.prototype.getApiClient = function (item) {
 
         if (!item) {
             throw new Error('item or serverId cannot be null');
@@ -1527,22 +1570,24 @@ export default class ConnectionManager {
             item = item.ServerId;
         }
 
-        return this._apiClients.filter(a => {
+        return this._apiClients.filter(function (a) {
 
-            const serverInfo = a.serverInfo();
+            var serverInfo = a.serverInfo();
 
             // We have to keep this hack in here because of the addApiClient method
             return !serverInfo || serverInfo.Id === item;
 
         })[0];
-    }
+    };
 
-    minServerVersion(val) {
+    ConnectionManager.prototype.minServerVersion = function (val) {
 
         if (val) {
             this._minServerVersion = val;
         }
 
         return this._minServerVersion;
-    }
-}
+    };
+
+    return ConnectionManager;
+});
