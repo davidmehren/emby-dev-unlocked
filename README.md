@@ -2,7 +2,7 @@
 Emby (dev) with the premium Emby Premiere features unlocked.
 
 ## Latest version
-[4.1](https://github.com/nicolahinssen/emby-dev-unlocked/releases/tag/4.1)
+[5.0](https://github.com/nicolahinssen/emby-dev-unlocked/releases/tag/5.0)
 
 ## Releases
 
