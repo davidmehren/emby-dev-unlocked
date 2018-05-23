@@ -128,24 +128,20 @@
 -                    }
 -                }
 -
--                var record = new MBRegistrationRecord
--                {
+                 var record = new MBRegistrationRecord
+                 {
 -                    IsRegistered = reg.registered,
 -                    ExpirationDate = reg.expDate,
--                    RegChecked = true,
++                    IsRegistered = true,
+                     RegChecked = true,
 -                    RegError = !success
--                };
--
++                    TrialVersion = false,
++                    IsValid = true,
++                    RegError = false
+                 };
+
 -                record.TrialVersion = IsInTrial(reg.expDate, record.RegChecked, record.IsRegistered);
 -                record.IsValid = !record.RegChecked || record.IsRegistered || record.TrialVersion;
-+            var record = new MBRegistrationRecord
-+            {
-+                IsRegistered = true,
-+                RegChecked = true,
-+                TrialVersion = false,
-+                IsValid = true,
-+                RegError = false
-+            };
  
                  return record;
              }
