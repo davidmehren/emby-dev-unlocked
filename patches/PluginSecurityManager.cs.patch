@@ -33,7 +33,7 @@
              }
  
          }
-@@ -184,113 +175,19 @@
+@@ -184,111 +175,16 @@
              }
          }
  
@@ -149,6 +149,4 @@
 -            {
 -                _regCheckLock.Release();
 -            }
-         }
- 
-         private bool IsInTrial(DateTime expirationDate, bool regChecked, bool isRegistered)
+-        }
