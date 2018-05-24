@@ -1,5 +1,6 @@
---- PluginSecurityManager.cs    2018-05-23 13:00:00.000000000 +0100
-+++ PluginSecurityManager_new.cs	2018-05-23 16:00:00.000000000 +0100
+
+--- PluginSecurityManager.cs	2018-05-23 13:00:00.000000000 +0100
++++ PluginSecurityManager_new.cs	2018-05-24 02:36:00.000000000 +0100
 @@ -136,7 +136,6 @@
                      {
                          var msg = "Result from appstore registration was null.";
@@ -33,14 +34,13 @@
              }
  
          }
-@@ -184,111 +175,16 @@
+@@ -184,113 +175,18 @@
              }
          }
  
 -        private SemaphoreSlim _regCheckLock = new SemaphoreSlim(1, 1);
 -
--        private async Task<MBRegistrationRecord> GetRegistrationStatusInternal(string feature, bool forceCallToServer, string version, CancellationToken cancellationToken)
-+        private async Task<MBRegistrationRecord> GetRegistrationStatusInternal(string feature, string version = null)
+         private async Task<MBRegistrationRecord> GetRegistrationStatusInternal(string feature, bool forceCallToServer, string version, CancellationToken cancellationToken)
          {
 -            await _regCheckLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 -
@@ -128,25 +128,32 @@
 -                    }
 -                }
 -
-                 var record = new MBRegistrationRecord
-                 {
+-                var record = new MBRegistrationRecord
+-                {
 -                    IsRegistered = reg.registered,
 -                    ExpirationDate = reg.expDate,
-+                    IsRegistered = true,
-                     RegChecked = true,
+-                    RegChecked = true,
 -                    RegError = !success
-+                    TrialVersion = false,
-+                    IsValid = true,
-+                    RegError = false
-                 };
-
+-                };
+-
 -                record.TrialVersion = IsInTrial(reg.expDate, record.RegChecked, record.IsRegistered);
 -                record.IsValid = !record.RegChecked || record.IsRegistered || record.TrialVersion;
++            var record = new MBRegistrationRecord
++            {
++                IsRegistered = true,
++                RegChecked = true,
++                TrialVersion = false,
++                IsValid = true,
++                RegError = false
++            };
  
-                 return record;
-             }
+-                return record;
+-            }
 -            finally
 -            {
 -                _regCheckLock.Release();
 -            }
--        }
++            return record;
+         }
+ 
+         private bool IsInTrial(DateTime expirationDate, bool regChecked, bool isRegistered)
