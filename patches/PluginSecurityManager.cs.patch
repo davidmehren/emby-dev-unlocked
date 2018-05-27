@@ -104,7 +104,7 @@
 -                        {
 -                            using (var json = response.Content)
 -                            {
--                                reg = _jsonSerializer.DeserializeFromStream<RegRecord>(json);
+-                                reg = await _jsonSerializer.DeserializeFromStreamAsync<RegRecord>(json).ConfigureAwait(false);
 -                                success = true;
 -                            }
 -                        }
